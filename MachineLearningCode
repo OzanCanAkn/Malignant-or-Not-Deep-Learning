@@ -1,1 +1,106 @@
+//this code typed for determines a cell is malignant or not according to given other cell types
+//then plot the heat map,and the accuracy and loss graphs
+import numpy as np #1.18.0
+import pandas as pd #0.25.3
+import matplotlib.pyplot as plt #3.1.2
+#Python 3.6.9
 
+def sigmoid(x):
+    return 1 / (1 + np.exp(-0.005*x))
+
+def sigmoid_derivative(x):
+    return 0.005 * x * (1 - x )
+
+def read_and_divide_into_train_and_test(csv_file):
+    data = pd.read_csv(csv_file).replace("?", np.nan).drop_duplicates()
+    data = data.dropna().astype(int)
+    training_labels = list(data.columns.values)
+    c=len(data)*2//10
+    test_inputs = data.iloc[0:c, :]
+    training_inputs = data.iloc[c:, :]
+    test_labels=list(data.columns.values)
+
+
+    corrs=data.iloc[:, 1:(len(test_labels)-1)].corr()
+    corrs=np.array(corrs)
+    corrname=data.iloc[:, 1:(len(test_labels))-1].columns.values
+    fig, ax = plt.subplots()
+    im = ax.imshow(corrs,cmap="hot")
+    cbar = ax.figure.colorbar(im, ax=ax)
+    cbar.ax.set_ylabel("", rotation=-90, va="bottom")
+
+    ticks = np.arange(0, 10, 1)
+    ax.set_xticklabels(corrname)
+    ax.set_yticklabels(corrname)
+    ax.set_xticks(ticks)
+    ax.set_yticks(ticks)
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
+             rotation_mode="anchor")
+    for i in range(len(corrname)):
+        for j in range(len(corrname)):
+            text = ax.text(j, i, round(corrs[i, j],2),
+                           ha="center", va="center", color="b",size="5")
+
+    ax.set_title(" pairwise correlations")
+    fig.tight_layout()
+    plt.show()
+    return training_inputs, training_labels, test_inputs, test_labels
+
+
+
+def run_on_test_set(test_inputs, test_labels, weights):
+    tp = 0
+    #calculate test_predictions
+    test_outputs=sigmoid(np.dot(test_inputs.iloc[:, 1:(len(test_labels)-1)].to_numpy(),weights))
+    test_predictions=test_inputs.iloc[:,(len(test_labels)-1)]
+    for predicted_val, label in zip(test_predictions, test_outputs):
+        if label>=0.5:
+            label=1
+        else:
+            label=0
+        if predicted_val == label:
+            tp =tp + 1
+    accuracy = tp / len(test_inputs)
+    return accuracy
+
+
+def plot_loss_accuracy(accuracy_array, loss_array):
+    plt.subplot(2, 1, 1)
+    plt.plot(range(len(accuracy_array)), accuracy_array, '-',color="green")
+    plt.title('Training Loss and Test Accuracy')
+    plt.ylabel('Accuracy')
+
+    plt.subplot(2, 1, 2)
+    plt.plot(range(len(loss_array)), loss_array, '-',color="red")
+    plt.xlabel('Iteration')
+    plt.ylabel('Loss')
+
+    plt.show()
+def main():
+    csv_file = "breast-cancer-wisconsin.csv"
+    iteration_count = 2500
+    np.random.seed(1)
+    weights = 2 * np.random.random((9, 1)) - 1
+    accuracy_array = []
+    loss_array = []
+    training_inputs, training_labels, test_inputs, test_labels = read_and_divide_into_train_and_test(csv_file)
+
+    for iteration in range(iteration_count):
+        input = training_inputs
+        #calculate outputs
+        arr = training_inputs.iloc[:, 1:(len(test_labels)-1)].to_numpy()
+        outputs = np.dot(arr, weights)
+        outputs=sigmoid(outputs)
+        #calculate loss
+        loss=np.subtract(np.transpose(training_inputs.iloc[:,(len(test_labels)-1)].to_numpy()),np.transpose(outputs))
+        #calculate tuning
+        tuning=np.transpose(loss) *sigmoid_derivative(outputs)
+        #update weights
+        weights=weights+np.dot(np.transpose(arr),tuning)
+        #run_on_test_set
+        accuracy_array.append(run_on_test_set(test_inputs, test_labels, weights))
+        loss_array.append(np.average(loss))
+    plot_loss_accuracy(accuracy_array, loss_array)
+
+if __name__ == '__main__':
+    main()
